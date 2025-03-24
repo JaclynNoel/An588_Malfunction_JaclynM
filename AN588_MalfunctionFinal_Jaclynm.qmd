@@ -1,0 +1,228 @@
+# Homework 4
+
+### Question 1:
+
+Write a simple R function, Z.prop.test(), that can perform one- or two-sample Z-tests for proportion data, using the following guidelines:
+
+-   Your function should take the following arguments: p1 and n1 (no default) representing the estimated proportion and sample size (i.e., based on your sample data); p2 and n2 (both defaulting to NULL) that contain a second sample’s proportion and sample size data in the event of a two-sample test; p0 (no default) as the expected value for the population proportion; and alternative (default “two.sided”) and conf.level (default 0.95), to be used in the same way as in the function t.test().
+
+-   When conducting a two-sample test, it should be p1 that is tested as being smaller or larger than p2 when alternative=“less” or alternative=“greater”, the same as in the use of x and y in the function t.test().
+
+-   The function should perform a one-sample Z-test using p1, n1, and p0 if either p2 or n2 (or both) is NULL.
+
+-   The function should contain a check for the rules of thumb we have talked about (𝑛∗𝑝\>5 and 𝑛∗(1−𝑝)\>5) to ensure the validity of assuming the normal distribution in both the one- and two-sample settings. If this is violated, the function should still complete but it should also print an appropriate warning message.
+
+-   The function should return a list containing the members Z (the test statistic), P (the appropriate p value), and CI (the two-sided CI with respect to “conf.level” around p1 in the case of a one-sample test and around p2-p1 in the case of a two-sample test). For all test alternatives (“two.sided”, “greater”, “less”), calculate symmetric CIs based on quantiles of the normal distribution rather than worrying about calculating single-limit confidence bounds.
+
+```{r}
+Z.prop.test <- function(p1, n1, p2 = NULL, n2 = NULL, p0, 
+                       alternative = "two.sided", conf.level = 0.95) {
+  # Determine if one-sample test
+  one.sample <- is.null(p2) || is.null(n2)
+  
+  # Check normal approximation
+  if ((one.sample && (n1 * p0 <= 5 || n1 * (1 - p0) <= 5)) || 
+      (!one.sample && (n1 * p1 <= 5 || n1 * (1 - p1) <= 5 || n2 * p2 <= 5 || n2 * (1 - p2) <= 5))) {
+    warning("Normal approximation may not be valid")
+  }
+  
+  # Calculate Z-statistic and confidence interval
+  z_alpha <- qnorm(1 - (1 - conf.level) / 2)
+  
+  if (one.sample) {
+    Z <- (p1 - p0) / sqrt(p0 * (1 - p0) / n1)
+    CI <- p1 + c(-1, 1) * z_alpha * sqrt(p1 * (1 - p1) / n1)
+  } else {
+    Z <- (p1 - p2) / sqrt(((p1 * n1 + p2 * n2) / (n1 + n2)) * (1 - (p1 * n1 + p2 * n2) / (n1 + n2)) * (1/n1 + 1/n2))
+    CI <- (p1 - p2) + c(-1, 1) * z_alpha * sqrt(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
+  }
+  
+  # Calculate p-value
+  P <- switch(alternative,
+             "two.sided" = 2 * pnorm(-abs(Z)),
+             "less" = pnorm(Z),
+             "greater" = pnorm(Z, lower.tail = FALSE))
+  
+  return(list(Z = Z, P = P, CI = CI))
+}
+```
+
+### Question 2
+
+### The dataset from Kamilar and Cooper has in it a large number of variables related to life history and body size. For this exercise, the end aim is to fit a simple linear regression model to predict longevity (`MaxLongevity_m`) measured in months from species’ brain size (`Brain_Size_Species_Mean`) measured in grams. Do the following for both `longevity~brain size` and `log(longevity)~log(brain size)`:
+
+-   Fit the regression model and, using {ggplot2}, produce a scatterplot with the fitted line superimposed upon the data. Append the the fitted model equation to your plot (HINT: use the function `geom_text()`).
+
+-   Identify and interpret the point estimate of the slope (β1), as well as the outcome of the test associated with the hypotheses H0: β1 = 0; HA: β1 ≠ 0. Also, find a 90 percent CI for the slope (𝛽1β1) parameter.
+
+-   Using your model, add lines for the 90 percent confidence and prediction interval bands on the plot and add a legend to differentiate between the lines.
+
+-   Produce a point estimate and associated 90 percent PI for the longevity of a species whose brain weight is 800 gm. Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
+
+-   Looking at your two models, which do you think is better? Why?
+
+```{r}
+library(curl)
+f <- curl("https://raw.githubusercontent.com/fuzzyatelin/fuzzyatelin.github.io/master/AN588_Fall23/KamilarAndCooperData.csv")
+d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(d)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+# Fit the first linear model: Longevity ~ Brain Size
+model1 <- lm(MaxLongevity_m ~ Brain_Size_Species_Mean, data=data)
+```
+
+```{r}
+# Fit the second linear model: log(Longevity) ~ log(Brain Size)
+data$log_MaxLongevity_m <- log(data$MaxLongevity_m)
+data$log_Brain_Size <- log(data$Brain_Size_Species_Mean)
+model2 <- lm(log_MaxLongevity_m ~ log_Brain_Size, data = data)
+```
+
+```{r}
+# Extract model coefficients
+eq1 <- paste0("Longevity = ", round(coef(model1)[1], 2), " + ", round(coef(model1)[2], 2), " * Brain Size")
+eq2 <- paste0("log(Longevity) = ", round(coef(model2)[1], 2), " + ", round(coef(model2)[2], 2), " * log(Brain Size)")
+```
+
+```{r}
+# Plot 1: Longevity vs Brain Size
+p1 <- ggplot(data, aes(x = Brain_Size_Species_Mean, y = MaxLongevity_m)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +
+  labs(title = "Longevity vs Brain Size",
+       x = "Brain Size (grams)",
+       y = "Longevity (months)") +
+ annotate("text", x = max(data$Brain_Size_Species_Mean) * 0.7, 
+           y = max(data$MaxLongevity_m) * 0.9, label = eq1, hjust = 0, size = 5, color = "blue")
+```
+
+```{r}
+p2 <- ggplot(data, aes(x = log_Brain_Size, y = log_MaxLongevity_m)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(title = "log(Longevity) vs log(Brain Size)",
+       x = "log(Brain Size)",
+       y = "log(Longevity)") +
+  annotate("text", x = max(data$log_Brain_Size) * 0.7, 
+           y = max(data$log_MaxLongevity_m) * 0.9, label = eq2, hjust = 0, size = 5, color = "red")
+
+```
+
+```{r}
+# Print the plots
+print(p1)
+print(p2)
+```
+
+#### Identify and interpret the point estimate of the slope (β1), as well as the outcome of the test associated with the hypotheses H0: β1 = 0; HA: β1 ≠ 0. Also, find a 90 percent CI for the slope (β1) parameter.
+
+```{r}
+# Extract summary statistics
+summary1 <- summary(model1)
+summary2 <- summary(model2)
+
+# Extract point estimate of slope (𝛽1)
+beta1_model1 <- summary1$coefficients[2, 1]  # Slope estimate for raw model
+beta1_model2 <- summary2$coefficients[2, 1]  # Slope estimate for log-log model
+
+# Extract p-values for hypothesis test H0: β1 = 0
+p_value_model1 <- summary1$coefficients[2, 4]
+p_value_model2 <- summary2$coefficients[2, 4]
+
+# Compute 90% Confidence Interval for β1
+ci_90_model1 <- confint(model1, level = 0.90)[2, ]
+ci_90_model2 <- confint(model2, level = 0.90)[2, ]
+
+# Print results
+cat("Model: Longevity ~ Brain Size\n")
+cat("Slope Estimate (β1):", beta1_model1, "\n")
+cat("p-value:", p_value_model1, "\n")
+cat("90% CI for β1:", ci_90_model1, "\n\n")
+
+cat("Model: log(Longevity) ~ log(Brain Size)\n")
+cat("Slope Estimate (β1):", beta1_model2, "\n")
+cat("p-value:", p_value_model2, "\n")
+cat("90% CI for β1:", ci_90_model2, "\n")
+```
+
+#### Using your model, add lines for the 90 percent confidence and prediction interval bands on the plot and add a legend to differentiate between the lines.
+
+```{r}
+# Create new data frame for predictions
+new_data <- data.frame(Brain_Size_Species_Mean = seq(min(data$Brain_Size_Species_Mean, na.rm = TRUE),
+                                                     max(data$Brain_Size_Species_Mean, na.rm = TRUE),
+                                                     length.out = 100))
+
+# Get fitted values and intervals
+predictions <- predict(model1, newdata = new_data, interval = "confidence", level = 0.90)  # 90% CI
+predictions_pi <- predict(model1, newdata = new_data, interval = "prediction", level = 0.90)  # 90% PI
+
+# Combine predictions into the new data frame
+new_data$fit <- predictions[, "fit"]
+new_data$lwr_CI <- predictions[, "lwr"]
+new_data$upr_CI <- predictions[, "upr"]
+new_data$lwr_PI <- predictions_pi[, "lwr"]
+new_data$upr_PI <- predictions_pi[, "upr"]
+
+# Plot with confidence and prediction intervals
+ggplot(data, aes(x = Brain_Size_Species_Mean, y = MaxLongevity_m)) +
+  geom_point(alpha = 0.6) +  # Scatter plot of actual data
+  geom_line(data = new_data, aes(y = fit, color = "Regression Line"), size = 1) +  # Fitted line
+  geom_line(data = new_data, aes(y = lwr_CI, color = "90% Confidence Interval"), linetype = "dashed", size = 1) +
+  geom_line(data = new_data, aes(y = upr_CI, color = "90% Confidence Interval"), linetype = "dashed", size = 1) +
+  geom_line(data = new_data, aes(y = lwr_PI, color = "90% Prediction Interval"), linetype = "dotted", size = 1) +
+  geom_line(data = new_data, aes(y = upr_PI, color = "90% Prediction Interval"), linetype = "dotted", size = 1) +
+  labs(title = "Longevity vs Brain Size with Confidence and Prediction Intervals",
+       x = "Brain Size (grams)",
+       y = "Longevity (months)") +
+  scale_color_manual(values = c("Regression Line" = "blue",
+                                "90% Confidence Interval" = "red",
+                                "90% Prediction Interval" = "green")) +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+```
+
+#### Produce a point estimate and associated 90 percent PI for the longevity of a species whose brain weight is 800 gm. Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
+
+```{r}
+# Define new data point for prediction (Brain Size = 800g)
+new_species <- data.frame(Brain_Size_Species_Mean = 800)
+
+# Get point estimate and 90% Prediction Interval
+prediction <- predict(model1, newdata = new_species, interval = "prediction", level = 0.90)
+
+# Display results
+cat("Point Estimate for Longevity (months):", round(prediction[1], 2), "\n")
+cat("90% Prediction Interval: [", round(prediction[2], 2), ",", round(prediction[3], 2), "]\n")
+
+```
+
+I would not fully trust this because 800gm falls outside of the mean for this data set
+
+#### Looking at your two models, which do you think is better? Why?
+
+The linear model (**Longevity \~ Brain Size**) is the better choice because it provides directly interpretable predictions in months and avoids potential biases from log transformations. The log-log model may seem to fit better statistically, but it shouldn't be fully trusted if it distorts the relationship or excludes key data points. Since the linear model already captures most of the variance and is more reliable for predictions, it’s the safer and more practical option.
+
+Help!\
+I am having trouble getting it to render an HTML file and I'm not sure why. I keep getting this error message
+
+"
+
+```         
+processing file: AN555_Malfunction_Jaclynm.qmd
+  |................                                   |  32% [unnamed-chunk-4] Error in `model.frame.default()`:
+! 'data' must be a data.frame, environment, or list
+Backtrace:
+    ▆
+ 1. ├─stats::model.frame(...)
+ 2. └─stats::model.frame.default(...)
+```
+
+"
