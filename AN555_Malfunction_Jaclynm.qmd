@@ -75,7 +75,7 @@ library(dplyr)
 
 ```{r}
 # Fit the first linear model: Longevity ~ Brain Size
-model1 <- lm(MaxLongevity_m ~ Brain_Size_Species_Mean, data = data)
+model1 <- lm(MaxLongevity_m ~ Brain_Size_Species_Mean, data=data)
 ```
 
 ```{r}
@@ -209,3 +209,20 @@ I would not fully trust this because 800gm falls outside of the mean for this da
 #### Looking at your two models, which do you think is better? Why?
 
 The linear model (**Longevity \~ Brain Size**) is the better choice because it provides directly interpretable predictions in months and avoids potential biases from log transformations. The log-log model may seem to fit better statistically, but it shouldn't be fully trusted if it distorts the relationship or excludes key data points. Since the linear model already captures most of the variance and is more reliable for predictions, it’s the safer and more practical option.
+
+Help!\
+I am having trouble getting it to render an HTML file and I'm not sure why. I keep getting this error message
+
+"
+
+```         
+processing file: AN555_Malfunction_Jaclynm.qmd
+  |................                                   |  32% [unnamed-chunk-4] Error in `model.frame.default()`:
+! 'data' must be a data.frame, environment, or list
+Backtrace:
+    ▆
+ 1. ├─stats::model.frame(...)
+ 2. └─stats::model.frame.default(...)
+```
+
+"
